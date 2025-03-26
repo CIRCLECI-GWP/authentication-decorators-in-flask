@@ -33,16 +33,17 @@ class BookModel(db.Model):
 def token_required(f):
     @wraps(f)
     def decorator(*args, **kwargs):
-        token = None
-        # pass jwt-token in headers
-        if 'x-access-token' in request.headers:
-            token = request.headers['x-access-token']
-        if not token: # throw error if no token provided
+        token = request.headers.get('x-access-token')  # Simplified token retrieval
+        if not token:  # Throw error if no token provided
             return make_response(jsonify({"message": "A valid token is missing!"}), 401)
         try:
             data = jwt.decode(token, app.config['SECRET_KEY'], algorithms=['HS256'])
-            current_user = User.query.filter_by(public_id=data['public_id']).first()
-        except:
+            current_user = User.query.filter_by(public_id=data.get('public_id')).first()
+            if not current_user:  # Ensure the user exists
+                return make_response(jsonify({"message": "User not found!"}), 404)
+        except jwt.ExpiredSignatureError:
+            return make_response(jsonify({"message": "Token has expired!"}), 401)
+        except jwt.InvalidTokenError:
             return make_response(jsonify({"message": "Invalid token!"}), 401)
 
         return f(current_user, *args, **kwargs)
